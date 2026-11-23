@@ -1,0 +1,5 @@
+ADD_SCENE(smash_editor, file_browser, FILE_BROWSER)
+ADD_SCENE(smash_editor, main, MAIN)
+ADD_SCENE(smash_editor, personality, PERSONALITY)
+ADD_SCENE(smash_editor, mii, MII)
+ADD_SCENE(smash_editor, ability, ABILITY)

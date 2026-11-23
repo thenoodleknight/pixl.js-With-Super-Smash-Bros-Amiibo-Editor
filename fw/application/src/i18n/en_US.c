@@ -189,6 +189,7 @@ const char * const lang_en_US[_L_COUNT] = {
     [_L_APP_CHAMELEON_CARD_TYPE_FACTORY_DATA_CONFRIM] = "Card type changed. \nFactory card data?",
     [_L_APP_CHAMELEON_CARD_DEFAULT_CARD] = "Default Card",
     [_L_APP_GAME] = "Game",
+    [_L_APP_SMASH_EDITOR] = "Smash Editor",
     [_L_APP_GAME_TINY_ARKANOID] = "Arkanoid",
     [_L_APP_GAME_TINY_INVADERS] = "Invaders",
     [_L_APP_GAME_TINY_LANDER] = "Lander",

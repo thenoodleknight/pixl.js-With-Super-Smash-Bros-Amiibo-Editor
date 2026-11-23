@@ -298,6 +298,13 @@ SRC_FILES += \
   $(PROJ_DIR)/app/amiibo/scene/amiibo_scene_file_browser.c \
   $(PROJ_DIR)/app/amiibo/scene/amiibo_scene_file_browser_menu.c \
   $(PROJ_DIR)/app/settings/app_settings.c \
+  $(PROJ_DIR)/app/smash_editor/app_smash_editor.c \
+  $(PROJ_DIR)/app/smash_editor/smash_data.c \
+  $(PROJ_DIR)/app/smash_editor/smash_abilities.c \
+  $(PROJ_DIR)/app/smash_editor/scene/smash_editor_scene.c \
+  $(PROJ_DIR)/app/smash_editor/scene/smash_editor_scene_file_browser.c \
+  $(PROJ_DIR)/app/smash_editor/scene/smash_editor_scene_fields.c \
+  $(PROJ_DIR)/app/smash_editor/scene/smash_editor_scene_ability.c \
   $(PROJ_DIR)/app/settings/scene/settings_scene.c \
   $(PROJ_DIR)/app/settings/scene/settings_scene_main.c \
   $(PROJ_DIR)/app/settings/scene/settings_scene_version.c \
@@ -563,6 +570,8 @@ INC_FOLDERS += \
   $(PROJ_DIR)/app/desktop \
   $(PROJ_DIR)/app/desktop/view \
   $(PROJ_DIR)/app/settings \
+  $(PROJ_DIR)/app/smash_editor \
+  $(PROJ_DIR)/app/smash_editor/scene \
   $(PROJ_DIR)/app/settings/scene \
   $(PROJ_DIR)/app/amiibo \
   $(PROJ_DIR)/app/amiibo/view \

@@ -139,6 +139,24 @@ ret_code_t amiibo_helper_sign_new_ntag(ntag_t *old_ntag, ntag_t *new_ntag) {
     return NRF_SUCCESS;
 }
 
+ret_code_t amiibo_helper_unpack(const ntag_t *ntag, uint8_t *plain) {
+    if (!amiibo_helper_is_key_loaded()) {
+        return NRF_ERROR_INVALID_STATE;
+    }
+    if (!nfc3d_amiibo_unpack(&amiibo_keys, ntag->data, plain, ntag->type == NTAG_I2C_PLUS_2K)) {
+        return NRF_ERROR_INVALID_DATA;
+    }
+    return NRF_SUCCESS;
+}
+
+ret_code_t amiibo_helper_pack(ntag_t *ntag, const uint8_t *plain) {
+    if (!amiibo_helper_is_key_loaded()) {
+        return NRF_ERROR_INVALID_STATE;
+    }
+    nfc3d_amiibo_pack(&amiibo_keys, plain, ntag->data, ntag->type == NTAG_I2C_PLUS_2K);
+    return NRF_SUCCESS;
+}
+
 ret_code_t amiibo_helper_rand_amiibo_uuid(ntag_t *ntag) {
     ret_code_t err_code;
     ntag_t *ntag_current = ntag;
