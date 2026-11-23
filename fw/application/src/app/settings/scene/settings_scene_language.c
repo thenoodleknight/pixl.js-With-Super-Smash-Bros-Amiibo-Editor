@@ -25,9 +25,7 @@ static void settings_scene_language_list_view_on_selected(mui_list_view_event_t 
 void settings_scene_language_on_enter(void *user_data) {
 
     app_settings_t *app = user_data;
-    for (uint8_t i = 0; i < LANGUAGE_COUNT; i++){
-      mui_list_view_add_item(app->p_list_view, 0xe105, getLangDesc(i), (void *)i);
-    }
+    mui_list_view_add_item(app->p_list_view, 0xe105, getLangDesc(LANGUAGE_EN_US), (void *)LANGUAGE_EN_US);
     mui_list_view_add_item(app->p_list_view, 0xe069, getLangString(_L_BACK), (void *)NULL_USER_DATA);
 
     mui_list_view_set_selected_cb(app->p_list_view, settings_scene_language_list_view_on_selected);
