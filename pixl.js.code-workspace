@@ -8,6 +8,15 @@
 		},
 		{
 			"path": "."
+		},
+		{
+			"path": "fw/application/src/app/smash_editor"
+		},
+		{
+			"path": "fw/application/src/app/amiibo"
+		},
+		{
+			"path": "fw/application/Makefile"
 		}
 	],
 	"settings": {
