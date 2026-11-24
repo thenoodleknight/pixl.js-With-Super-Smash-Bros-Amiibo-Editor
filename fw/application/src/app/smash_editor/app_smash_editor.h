@@ -39,6 +39,7 @@ typedef struct {
     /** editing state */
     uint16_t group_focus[3];
     const smash_field_t *p_editing;
+    uint8_t ability_page;
 } app_smash_editor_t;
 
 typedef enum {

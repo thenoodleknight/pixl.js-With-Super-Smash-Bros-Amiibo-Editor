@@ -12,8 +12,8 @@
 
 // Offsets/bit positions come from regions.json
 const smash_field_t smash_fields[] = {
-    MAIN_U16("Level EXP", 0x14C, 3912),
-    MAIN_U16("CPU EXP", 0x14E, 2765),
+    MAIN_U16("Level EXP", 0x14C, 65535),
+    MAIN_U16("CPU EXP", 0x14E, 65535),
     MAIN_S16("Attack", 0x150, -32768, 32767),
     MAIN_S16("Defense", 0x152, -32768, 32767),
     MAIN_ABILITY("Ability 1", 0xEC),
@@ -128,9 +128,9 @@ static void smash_set_stream(uint8_t *plain, const smash_field_t *f, int32_t val
 int32_t smash_data_get(const uint8_t *plain, const smash_field_t *f) {
     switch (f->type) {
     case SMASH_FIELD_UNSIGNED:
-        return (plain[f->offset] << 8) | plain[f->offset + 1];
+        return plain[f->offset] | (plain[f->offset + 1] << 8);
     case SMASH_FIELD_SIGNED:
-        return (int16_t)((plain[f->offset] << 8) | plain[f->offset + 1]);
+        return (int16_t)(plain[f->offset] | (plain[f->offset + 1] << 8));
     case SMASH_FIELD_PERCENT:
         return smash_get_stream(plain, f);
     default:
@@ -148,8 +148,8 @@ void smash_data_set(uint8_t *plain, const smash_field_t *f, int32_t value) {
     switch (f->type) {
     case SMASH_FIELD_UNSIGNED:
     case SMASH_FIELD_SIGNED:
-        plain[f->offset] = (value >> 8) & 0xFF;
-        plain[f->offset + 1] = value & 0xFF;
+        plain[f->offset] = value & 0xFF;
+        plain[f->offset + 1] = (value >> 8) & 0xFF;
         break;
     case SMASH_FIELD_PERCENT:
         smash_set_stream(plain, f, value);

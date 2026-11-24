@@ -8,8 +8,8 @@
 #define SMASH_ABILITY_COUNT 256
 
 typedef enum {
-    SMASH_FIELD_UNSIGNED, // big-endian 16-bit
-    SMASH_FIELD_SIGNED,   // big-endian 16-bit, two's complement
+    SMASH_FIELD_UNSIGNED, // little-endian 16-bit
+    SMASH_FIELD_SIGNED,   // little-endian 16-bit, two's complement
     SMASH_FIELD_ENUM,     // little-endian bit field inside a single byte
     SMASH_FIELD_BOOL,     // single bit
     SMASH_FIELD_ABILITY,  // one byte, index into smash_ability_names
@@ -25,8 +25,8 @@ typedef struct {
     uint8_t length; // in bits, 16 for 16-bit integers
     uint8_t type;
     uint8_t group;
-    int16_t min;
-    int16_t max;
+    int32_t min;
+    int32_t max;
 } smash_field_t;
 
 extern const smash_field_t smash_fields[];

@@ -98,7 +98,7 @@ mini_app_t app_smash_editor_info = {.id = MINI_APP_ID_SMASH_EDITOR,
                                     .sys = false,
                                     .deamon = false,
                                     .hibernate_enabled = false,
-                                    .icon_32x32 = &app_amiibo_emulator_32x32,
+                                    .icon_32x32 = &app_game_32x32,
                                     .run_cb = app_smash_editor_on_run,
                                     .kill_cb = app_smash_editor_on_kill,
                                     .on_event_cb = app_smash_editor_on_event};
