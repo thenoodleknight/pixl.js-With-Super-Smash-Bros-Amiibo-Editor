@@ -2,12 +2,14 @@
 
 #include <stdio.h>
 
+static const char *const smash_spirit_type_labels[] = {"Neutral", "Attack", "Defense", "Grab"};
+
 #define MAIN_U16(n, o, mx) {n, o, 0, 16, SMASH_FIELD_UNSIGNED, SMASH_GROUP_MAIN, 0, mx}
 #define MAIN_S16(n, o, mn, mx) {n, o, 0, 16, SMASH_FIELD_SIGNED, SMASH_GROUP_MAIN, mn, mx}
-#define MAIN_ENUM(n, o, b, l) {n, o, b, l, SMASH_FIELD_ENUM, SMASH_GROUP_MAIN, 0, (1 << (l)) - 1}
-#define MAIN_BOOL(n, o, b) {n, o, b, 1, SMASH_FIELD_BOOL, SMASH_GROUP_MAIN, 0, 1}
+#define MAIN_ENUM(n, o, b, l, mx, add, lbl) {n, o, b, l, SMASH_FIELD_ENUM, SMASH_GROUP_MAIN, 0, mx, add, lbl}
+#define MAIN_BOOL(n, o, b) {n, o, b, 1, SMASH_FIELD_BOOL, SMASH_GROUP_MAIN, 0, 1, 0, NULL}
 #define MAIN_ABILITY(n, o) {n, o, 0, 8, SMASH_FIELD_ABILITY, SMASH_GROUP_MAIN, 0, 255}
-#define MII_ENUM(n, o, b, l) {n, o, b, l, SMASH_FIELD_ENUM, SMASH_GROUP_MII, 0, (1 << (l)) - 1}
+#define MII_ENUM(n, o, b, l, mx, add) {n, o, b, l, SMASH_FIELD_ENUM, SMASH_GROUP_MII, 0, mx, add, NULL}
 #define PCT(n, o, b, l) {n, o, b, l, SMASH_FIELD_PERCENT, SMASH_GROUP_PERSONALITY, 0, (1 << (l)) - 1}
 
 // Offsets/bit positions come from regions.json
@@ -21,16 +23,16 @@ const smash_field_t smash_fields[] = {
     MAIN_ABILITY("Ability 3", 0xEE),
     MAIN_BOOL("Learning", 0xE2, 7),
     MAIN_BOOL("Journey", 0xE2, 6),
-    MAIN_ENUM("Spirit Type", 0xE3, 0, 2),
-    MAIN_ENUM("Alternate Skin", 0x1A3, 4, 4),
+    MAIN_ENUM("Spirit Type", 0xE3, 0, 2, 3, 0, smash_spirit_type_labels),
+    MAIN_ENUM("Alternate Skin", 0x1A3, 4, 4, 11, 1, NULL),
 
-    MII_ENUM("Hat", 0xF0, 0, 8),
-    MII_ENUM("Outfit", 0xF2, 0, 8),
-    MII_ENUM("Neutral Special", 0xEF, 6, 2),
-    MII_ENUM("Side Special", 0xEF, 4, 2),
-    MII_ENUM("Up Special", 0xEF, 2, 2),
-    MII_ENUM("Down Special", 0xEF, 0, 2),
-    MII_ENUM("Voice/Starter Pokemon", 0x1A2, 0, 8),
+    MII_ENUM("Hat", 0xF0, 0, 8, 255, 0),
+    MII_ENUM("Outfit", 0xF2, 0, 8, 255, 0),
+    MII_ENUM("Neutral Special", 0xEF, 6, 2, 2, 1),
+    MII_ENUM("Side Special", 0xEF, 4, 2, 2, 1),
+    MII_ENUM("Up Special", 0xEF, 2, 2, 2, 1),
+    MII_ENUM("Down Special", 0xEF, 0, 2, 2, 1),
+    MII_ENUM("Voice/Starter Pokemon", 0x1A2, 0, 8, 255, 0),
 
     PCT("Near", 0x168, 7, 7),
     PCT("Offensive", 0x168, 0, 7),
@@ -102,25 +104,69 @@ const smash_field_t smash_fields[] = {
 
 const size_t smash_field_count = sizeof(smash_fields) / sizeof(smash_fields[0]);
 
-// Percent fields are packed MSB-first: the value's top bit sits at `bit` of
-// byte `offset`, then continues downwards and into the following bytes.
-static int32_t smash_get_stream(const uint8_t *plain, const smash_field_t *f) {
-    uint32_t pos = (uint32_t)f->offset * 8 + (7 - f->bit);
+// Bit addressing follows the smash-amiibo-editor: `bit` counts from the MSB of
+// byte `offset` (0 = MSB, 7 = LSB). Plain bit fields are read MSB-first towards
+// the LSB and continue at the MSB of the next byte.
+static int32_t smash_get_bits(const uint8_t *plain, const smash_field_t *f) {
+    uint32_t byte = f->offset;
+    int i = f->bit;
     int32_t value = 0;
-    for (uint8_t i = 0; i < f->length; i++, pos++) {
-        value = (value << 1) | ((plain[pos >> 3] >> (7 - (pos & 7))) & 1);
+    for (uint8_t k = 0; k < f->length; k++) {
+        value = (value << 1) | ((plain[byte] >> (7 - i)) & 1);
+        if (++i == 8) {
+            i = 0;
+            byte++;
+        }
     }
     return value;
 }
 
-static void smash_set_stream(uint8_t *plain, const smash_field_t *f, int32_t value) {
-    uint32_t pos = (uint32_t)f->offset * 8 + (7 - f->bit);
-    for (uint8_t i = 0; i < f->length; i++, pos++) {
-        uint8_t mask = 1 << (7 - (pos & 7));
-        if ((value >> (f->length - 1 - i)) & 1) {
-            plain[pos >> 3] |= mask;
+static void smash_set_bits(uint8_t *plain, const smash_field_t *f, int32_t value) {
+    uint32_t byte = f->offset;
+    int i = f->bit;
+    for (uint8_t k = 0; k < f->length; k++) {
+        uint8_t mask = 1 << (7 - i);
+        if ((value >> (f->length - 1 - k)) & 1) {
+            plain[byte] |= mask;
         } else {
-            plain[pos >> 3] &= ~mask;
+            plain[byte] &= ~mask;
+        }
+        if (++i == 8) {
+            i = 0;
+            byte++;
+        }
+    }
+}
+
+// Percentages are stored "reversed": the value's LSB sits at `bit`, and higher
+// bits move towards the MSB of the byte, then continue at the LSB of the next byte.
+static int32_t smash_get_percent_bits(const uint8_t *plain, const smash_field_t *f) {
+    uint32_t byte = f->offset;
+    int i = f->bit;
+    int32_t value = 0;
+    for (uint8_t k = 0; k < f->length; k++) {
+        value |= ((plain[byte] >> (7 - i)) & 1) << k;
+        if (--i < 0) {
+            i = 7;
+            byte++;
+        }
+    }
+    return value;
+}
+
+static void smash_set_percent_bits(uint8_t *plain, const smash_field_t *f, int32_t value) {
+    uint32_t byte = f->offset;
+    int i = f->bit;
+    for (uint8_t k = 0; k < f->length; k++) {
+        uint8_t mask = 1 << (7 - i);
+        if ((value >> k) & 1) {
+            plain[byte] |= mask;
+        } else {
+            plain[byte] &= ~mask;
+        }
+        if (--i < 0) {
+            i = 7;
+            byte++;
         }
     }
 }
@@ -132,9 +178,9 @@ int32_t smash_data_get(const uint8_t *plain, const smash_field_t *f) {
     case SMASH_FIELD_SIGNED:
         return (int16_t)(plain[f->offset] | (plain[f->offset + 1] << 8));
     case SMASH_FIELD_PERCENT:
-        return smash_get_stream(plain, f);
+        return smash_get_percent_bits(plain, f);
     default:
-        return (plain[f->offset] >> f->bit) & ((1 << f->length) - 1);
+        return smash_get_bits(plain, f);
     }
 }
 
@@ -152,13 +198,11 @@ void smash_data_set(uint8_t *plain, const smash_field_t *f, int32_t value) {
         plain[f->offset + 1] = (value >> 8) & 0xFF;
         break;
     case SMASH_FIELD_PERCENT:
-        smash_set_stream(plain, f, value);
+        smash_set_percent_bits(plain, f, value);
         break;
-    default: {
-        uint8_t mask = ((1 << f->length) - 1) << f->bit;
-        plain[f->offset] = (plain[f->offset] & ~mask) | ((value << f->bit) & mask);
+    default:
+        smash_set_bits(plain, f, value);
         break;
-    }
     }
 }
 
@@ -167,7 +211,7 @@ int32_t smash_data_get_display(const uint8_t *plain, const smash_field_t *f) {
     if (f->type == SMASH_FIELD_PERCENT) {
         return (value * 100 + f->max / 2) / f->max;
     }
-    return value;
+    return value + f->disp_add;
 }
 
 void smash_data_set_display(uint8_t *plain, const smash_field_t *f, int32_t value) {
@@ -178,6 +222,8 @@ void smash_data_set_display(uint8_t *plain, const smash_field_t *f, int32_t valu
             value = 100;
         }
         value = (value * f->max + 50) / 100;
+    } else {
+        value -= f->disp_add;
     }
     smash_data_set(plain, f, value);
 }
@@ -195,7 +241,52 @@ void smash_data_format(const uint8_t *plain, const smash_field_t *f, char *buf, 
         snprintf(buf, size, "%s", smash_ability_names[value & 0xFF]);
         break;
     default:
-        snprintf(buf, size, "%d", (int)value);
+        if (f->labels && value >= 0 && value <= f->max) {
+            snprintf(buf, size, "%s", f->labels[value]);
+        } else {
+            snprintf(buf, size, "%d", (int)value);
+        }
         break;
+    }
+}
+
+// Percent fields in 1/100000 of a percent, for fine editing
+int32_t smash_data_get_percent_e5(const uint8_t *plain, const smash_field_t *f) {
+    return (int32_t)(((int64_t)smash_data_get(plain, f) * 10000000 + f->max / 2) / f->max);
+}
+
+void smash_data_set_percent_e5(uint8_t *plain, const smash_field_t *f, int32_t e5) {
+    if (e5 < 0) {
+        e5 = 0;
+    } else if (e5 > 10000000) {
+        e5 = 10000000;
+    }
+    smash_data_set(plain, f, (int32_t)(((int64_t)e5 * f->max + 5000000) / 10000000));
+}
+
+// The amiibo name is 10 UTF-16 big-endian characters; only ASCII is supported here
+void smash_data_get_name(const uint8_t *plain, char *out) {
+    for (int i = 0; i < SMASH_NAME_LENGTH; i++) {
+        uint8_t hi = plain[SMASH_NAME_OFFSET + i * 2];
+        uint8_t lo = plain[SMASH_NAME_OFFSET + i * 2 + 1];
+        out[i] = (hi == 0 && lo >= 0x20 && lo < 0x7F) ? lo : (hi == 0 && lo == 0 ? 0 : '?');
+        if (out[i] == 0) {
+            for (int j = i; j <= SMASH_NAME_LENGTH; j++) {
+                out[j] = 0;
+            }
+            return;
+        }
+    }
+    out[SMASH_NAME_LENGTH] = 0;
+}
+
+void smash_data_set_name(uint8_t *plain, const char *name) {
+    bool ended = false;
+    for (int i = 0; i < SMASH_NAME_LENGTH; i++) {
+        if (!ended && name[i] == 0) {
+            ended = true;
+        }
+        plain[SMASH_NAME_OFFSET + i * 2] = 0;
+        plain[SMASH_NAME_OFFSET + i * 2 + 1] = ended ? 0 : name[i];
     }
 }

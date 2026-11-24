@@ -18,6 +18,7 @@
 #define ITEM_PERSONALITY 0xFFF1
 #define ITEM_MII 0xFFF2
 #define ITEM_SAVE 0xFFF3
+#define ITEM_NAME 0xFFF4
 
 // list item user_data for a field is (index into smash_fields) + 1
 #define FIELD_TO_DATA(i) ((void *)(uintptr_t)((i) + 1))
@@ -111,35 +112,121 @@ static bool smash_editor_parse_number(const char *text, int32_t *p_value) {
     return true;
 }
 
+// Parses "12.34567" into 1/100000ths; extra decimals are rounded off
+static bool smash_editor_parse_percent(const char *text, int32_t *p_e5) {
+    int64_t whole = 0;
+    int32_t frac = 0;
+    int digits = 0;
+    bool round_up = false;
+    bool seen_digit = false;
+
+    for (; *text >= '0' && *text <= '9'; text++) {
+        whole = whole * 10 + (*text - '0');
+        seen_digit = true;
+        if (whole > 100) {
+            return false;
+        }
+    }
+    if (*text == '.') {
+        for (text++; *text >= '0' && *text <= '9'; text++) {
+            seen_digit = true;
+            if (digits < 5) {
+                frac = frac * 10 + (*text - '0');
+                digits++;
+            } else if (digits == 5) {
+                round_up = *text >= '5';
+                digits++;
+            }
+        }
+    }
+    if (!seen_digit || *text != '\0') {
+        return false;
+    }
+    for (int i = digits > 5 ? 5 : digits; i < 5; i++) {
+        frac *= 10;
+    }
+    int64_t e5 = whole * 100000 + frac + (round_up ? 1 : 0);
+    if (e5 > 10000000) {
+        return false;
+    }
+    *p_e5 = (int32_t)e5;
+    return true;
+}
+
+static void smash_editor_format_percent(int32_t e5, char *buf, size_t size) {
+    snprintf(buf, size, "%d.%05d", (int)(e5 / 100000), (int)(e5 % 100000));
+    // trim trailing zeros and a dangling dot
+    size_t n = strlen(buf);
+    while (n > 0 && buf[n - 1] == '0') {
+        buf[--n] = '\0';
+    }
+    if (n > 0 && buf[n - 1] == '.') {
+        buf[n - 1] = '\0';
+    }
+}
+
 static void smash_editor_text_input_cb(mui_text_input_event_t event, mui_text_input_t *p_text_input) {
     app_smash_editor_t *app = p_text_input->user_data;
     const smash_field_t *field = app->p_editing;
     int32_t value;
 
     if (event == MUI_TEXT_INPUT_EVENT_CONFIRMED) {
-        int32_t min = field->min;
-        int32_t max = field->type == SMASH_FIELD_PERCENT ? 100 : field->max;
+        const char *text = mui_text_input_get_input_text(p_text_input);
 
-        if (!smash_editor_parse_number(mui_text_input_get_input_text(p_text_input), &value) || value < min ||
-            value > max) {
-            mui_toast_view_show(app->p_toast_view, "Invalid value");
-            return;
+        if (field == NULL) {
+            if (strlen(text) > SMASH_NAME_LENGTH) {
+                mui_toast_view_show(app->p_toast_view, "Max 10 characters");
+                return;
+            }
+            smash_data_set_name(app->plain, text);
+            app->dirty = true;
+        } else if (field->type == SMASH_FIELD_PERCENT) {
+            if (!smash_editor_parse_percent(text, &value)) {
+                mui_toast_view_show(app->p_toast_view, "Invalid value");
+                return;
+            }
+            smash_data_set_percent_e5(app->plain, field, value);
+            app->dirty = true;
+        } else {
+            int32_t min = field->min + field->disp_add;
+            int32_t max = field->type == SMASH_FIELD_PERCENT ? 100 : field->max + field->disp_add;
+
+            if (!smash_editor_parse_number(text, &value) || value < min || value > max) {
+                mui_toast_view_show(app->p_toast_view, "Invalid value");
+                return;
+            }
+            smash_data_set_display(app->plain, field, value);
+            app->dirty = true;
         }
-        smash_data_set_display(app->plain, field, value);
-        app->dirty = true;
     }
 
     smash_group_t group = smash_editor_current_group(app);
     smash_editor_fields_reload(app, group, app->group_focus[group]);
 }
 
+static void smash_editor_start_name_input(app_smash_editor_t *app) {
+    char name[SMASH_NAME_LENGTH + 1];
+
+    smash_data_get_name(app->plain, name);
+    app->p_editing = NULL;
+    mui_text_input_set_header(app->p_text_input, "Amiibo name (max 10)");
+    mui_text_input_set_input_text(app->p_text_input, name);
+    mui_text_input_set_event_cb(app->p_text_input, smash_editor_text_input_cb);
+    mui_view_dispatcher_switch_to_view(app->p_view_dispatcher, SMASH_EDITOR_VIEW_ID_INPUT);
+}
+
 static void smash_editor_start_number_input(app_smash_editor_t *app, const smash_field_t *field) {
     char header[40];
     char text[16];
-    int32_t max = field->type == SMASH_FIELD_PERCENT ? 100 : field->max;
+    int32_t min = field->min + field->disp_add;
+    int32_t max = field->type == SMASH_FIELD_PERCENT ? 100 : field->max + field->disp_add;
 
-    snprintf(header, sizeof(header), "%s %d..%d", field->name, (int)field->min, (int)max);
-    snprintf(text, sizeof(text), "%d", (int)smash_data_get_display(app->plain, field));
+    snprintf(header, sizeof(header), "%s %d..%d", field->name, (int)min, (int)max);
+    if (field->type == SMASH_FIELD_PERCENT) {
+        smash_editor_format_percent(smash_data_get_percent_e5(app->plain, field), text, sizeof(text));
+    } else {
+        snprintf(text, sizeof(text), "%d", (int)smash_data_get_display(app->plain, field));
+    }
 
     app->p_editing = field;
     mui_text_input_set_header(app->p_text_input, header);
@@ -176,6 +263,9 @@ static void smash_editor_fields_on_selected(mui_list_view_event_t event, mui_lis
     case ITEM_SAVE:
         smash_editor_save(app);
         return;
+    case ITEM_NAME:
+        smash_editor_start_name_input(app);
+        return;
     default:
         break;
     }
@@ -210,6 +300,12 @@ static void smash_editor_fields_reload(app_smash_editor_t *app, smash_group_t gr
 
     mui_list_view_clear_items(app->p_list_view);
     mui_list_view_add_item(app->p_list_view, ICON_BACK, "..", (void *)ITEM_BACK);
+
+    if (group == SMASH_GROUP_MAIN) {
+        char name[SMASH_NAME_LENGTH + 1];
+        smash_data_get_name(app->plain, name);
+        mui_list_view_add_item_ext(app->p_list_view, ICON_FILE, "Name", name, (void *)ITEM_NAME);
+    }
 
     for (size_t i = 0; i < smash_field_count; i++) {
         const smash_field_t *field = &smash_fields[i];
