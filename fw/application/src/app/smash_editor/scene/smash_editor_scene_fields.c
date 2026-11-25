@@ -40,6 +40,7 @@ static smash_group_t smash_editor_current_group(app_smash_editor_t *app) {
 static void smash_editor_save(app_smash_editor_t *app) {
     char path[VFS_MAX_PATH_LEN];
 
+    smash_data_update_checksum(app->plain);
     if (amiibo_helper_pack(app->p_ntag, app->plain) != NRF_SUCCESS) {
         mui_toast_view_show(app->p_toast_view, "Failed");
         return;

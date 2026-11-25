@@ -33,6 +33,9 @@ typedef struct {
 
 #define SMASH_NAME_OFFSET 0x38
 #define SMASH_NAME_LENGTH 10
+#define SMASH_CRC_OFFSET 0xDC
+#define SMASH_CRC_DATA_START 0xE0
+#define SMASH_CRC_DATA_END 0x1B4
 
 extern const smash_field_t smash_fields[];
 extern const size_t smash_field_count;
@@ -54,5 +57,8 @@ void smash_data_format(const uint8_t *plain, const smash_field_t *field, char *b
 // out must hold SMASH_NAME_LENGTH + 1 bytes
 void smash_data_get_name(const uint8_t *plain, char *out);
 void smash_data_set_name(uint8_t *plain, const char *name);
+
+// Recomputes the game data CRC32; must run after every edit and before packing
+void smash_data_update_checksum(uint8_t *plain);
 
 #endif

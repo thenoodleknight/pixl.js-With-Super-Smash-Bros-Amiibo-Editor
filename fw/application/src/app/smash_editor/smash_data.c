@@ -264,6 +264,22 @@ void smash_data_set_percent_e5(uint8_t *plain, const smash_field_t *f, int32_t e
     smash_data_set(plain, f, (int32_t)(((int64_t)e5 * f->max + 5000000) / 10000000));
 }
 
+// The Smash game data carries a CRC32 (LE at 0xDC) over 0xE0..0x1B3 that the game checks
+void smash_data_update_checksum(uint8_t *plain) {
+    uint32_t crc = 0;
+    for (uint32_t i = SMASH_CRC_DATA_START; i < SMASH_CRC_DATA_END; i++) {
+        crc ^= plain[i];
+        for (int b = 0; b < 8; b++) {
+            crc = (crc >> 1) ^ ((crc & 1) ? 0xEDB88320u : 0);
+        }
+    }
+    crc = ~crc;
+    plain[SMASH_CRC_OFFSET] = crc & 0xFF;
+    plain[SMASH_CRC_OFFSET + 1] = (crc >> 8) & 0xFF;
+    plain[SMASH_CRC_OFFSET + 2] = (crc >> 16) & 0xFF;
+    plain[SMASH_CRC_OFFSET + 3] = (crc >> 24) & 0xFF;
+}
+
 // The amiibo name is 10 UTF-16 big-endian characters; only ASCII is supported here
 void smash_data_get_name(const uint8_t *plain, char *out) {
     for (int i = 0; i < SMASH_NAME_LENGTH; i++) {
