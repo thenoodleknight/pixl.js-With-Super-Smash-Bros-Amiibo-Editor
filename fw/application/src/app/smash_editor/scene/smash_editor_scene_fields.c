@@ -45,6 +45,15 @@ static void smash_editor_save(app_smash_editor_t *app) {
         return;
     }
 
+    // Decrypt what was just packed and make sure both HMACs verify and the
+    // payload matches before the file is overwritten
+    uint8_t check[SMASH_PLAIN_SIZE];
+    if (amiibo_helper_unpack(app->p_ntag, check) != NRF_SUCCESS || memcmp(check + 0x28, app->plain + 0x28, 0x1B4 - 0x28) != 0 ||
+        memcmp(check + 0x1D4, app->plain + 0x1D4, 0x34) != 0) {
+        mui_toast_view_show(app->p_toast_view, "Verify failed");
+        return;
+    }
+
     cwalk_append_segment(path, string_get_cstr(app->current_folder), string_get_cstr(app->current_file));
     vfs_driver_t *p_driver = vfs_get_driver(app->current_drive);
     if (p_driver->write_file_data(path, app->p_ntag->data, _ntag_data_size(app->p_ntag)) < 0) {
